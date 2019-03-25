@@ -1,8 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"image/jpeg"
+	"image"
 	"io"
 	"log"
 	"mime/multipart"
@@ -79,13 +80,26 @@ func uploadFile(r *Repository, albumID string, filePart *multipart.Part) (string
 		return "", err
 	}
 
-	fileSize, err := io.Copy(dst, filePart)
+	buf := &bytes.Buffer{}
+	fileSize, err := io.Copy(buf, filePart)
 	if err != nil {
-		os.Remove(filePath)
 		return "", err
 	}
 
-	height, width, err := postUploadActions(filePath)
+	img, err := imaging.Decode(buf, imaging.AutoOrientation(true))
+	if err != nil {
+		return "", err
+	}
+
+	height := img.Bounds().Dy()
+	width := img.Bounds().Dx()
+
+	err = imaging.Save(img, filePath)
+	if err != nil {
+		return "", err
+	}
+
+	err = makeThumbnail(img, fileID)
 	if err != nil {
 		os.Remove(filePath)
 		return "", err
@@ -99,46 +113,19 @@ func uploadFile(r *Repository, albumID string, filePart *multipart.Part) (string
 		return "", err
 	}
 
-	makeThumbnail(filePath, fileID, fileType)
-
 	return fileID, nil
 }
 
-func postUploadActions(filePath string) (int, int, error) {
-	img, err := imaging.Open(filePath, imaging.AutoOrientation(true))
-	if err != nil {
-		return 0, 0, nil
-	}
-
-	height := img.Bounds().Dy()
-	width := img.Bounds().Dx()
-
-	err = imaging.Save(img, filePath)
-	if err != nil {
-		return 0, 0, nil
-	}
-
-	return height, width, nil
-}
-
-func makeThumbnail(filePath string, fileID string, fileType string) error {
-	img, err := imaging.Open(filePath, imaging.AutoOrientation(true))
-	if err != nil {
-		return err
-	}
-
+func makeThumbnail(img image.Image, fileID string) error {
 	m := imaging.Fit(img, 650, 650, imaging.Lanczos)
 
 	thumbName := fmt.Sprintf("%s.thumb.jpg", fileID)
 	thumbPath := filepath.Join(imagePath, thumbName)
 
-	dst, err := os.Create(thumbPath)
+	err := imaging.Save(m, thumbPath)
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
-
-	jpeg.Encode(dst, m, nil)
 
 	return nil
 }

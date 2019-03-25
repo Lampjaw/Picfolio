@@ -41,19 +41,17 @@ func InitRepository() *Repository {
 		log.Fatal(err)
 	}
 
-	/*
-		sqlStmt := `
+	sqlStmt := `
 		create table images (id text not null primary key, fileType text, title text, path text, description text, size int64, mimeType text, albumId text, height int, width int, created timestamp);
 		delete from images;
 		create table albums (id text not null primary key, title text, description text, coverPhotoId text, created timestamp);
 		delete from albums;
 		`
 
-		_, err = db.Exec(sqlStmt)
-		if err != nil {
-			log.Fatal("%q: %s\n", err, sqlStmt)
-		}
-	*/
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Fatal("%q: %s\n", err, sqlStmt)
+	}
 
 	return &Repository{
 		Database: db,
