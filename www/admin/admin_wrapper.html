@@ -1,0 +1,53 @@
+<html>
+    {{template "common_head" .}}
+    <body>
+        <nav class="navbar navbar-expand-sm navbar-light border-bottom border-dark">
+            <div class="container">
+                <a class="navbar-brand" href="/admin">Picfolio</a>
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse justify-content-between" id="navbarSupportedContent">
+                    <ul class="navbar-nav mr-auto">
+                        <li class="nav-item active">
+                            <button type="submit" class="btn btn-primary" data-toggle="modal" data-target="#createAlbumModal">New Album</button>
+                        </li>
+                    </ul>
+                    <span class="navbar-nav nav-item">
+                        <a class="nav-link" href="/logout">Logout</a>
+                    </span>
+                </div>
+            </div>
+        </nav>
+        <br>
+        <div class="container">
+            {{template "content" .}}
+        </div>
+        <div class="modal fade" id="createAlbumModal" tabindex="-1" role="dialog" aria-labelledby="createAlbumModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <form class="modal-content" action="/album" method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createAlbumModalLabel">New Album</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="albumFormControlTitleInput">Title</label>
+                            <input type="text" name="title" class="form-control" id="albumFormControlTitleInput">
+                        </div>
+                        <div class="form-group">
+                            <label for="albumFormControlDescriptionInput">Description</label>
+                            <input type="textarea" name="description" class="form-control" id="albumFormControlDescriptionInput">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,179 @@
+{{define "content"}}
+<div>
+    <button type="submit" class="btn btn-primary" data-toggle="modal" data-target="#uploadModal">+ Upload</button>
+</div>
+<p>
+<h2>{{$.Album.Title}}</h2>
+<div>{{$.Album.Description}}</div>
+<div class="image-container"></div>
+<div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <form class="modal-content" action="/upload/{{$.Album.ID}}" method="POST" enctype="multipart/form-data">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel">Upload Images</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="uploadFormControlFile">Choose one or more images to upload.</label>
+                    <input type="file" name="files" accept="image/*" class="form-control-file" id="uploadFormControlFile" multiple>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- Root element of PhotoSwipe. Must have class pswp. -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+
+    <!-- Background of PhotoSwipe. 
+         It's a separate element as animating opacity is faster than rgba(). -->
+    <div class="pswp__bg"></div>
+
+    <!-- Slides wrapper with overflow:hidden. -->
+    <div class="pswp__scroll-wrap">
+
+        <!-- Container that holds slides. 
+            PhotoSwipe keeps only 3 of them in the DOM to save memory.
+            Don't modify these 3 pswp__item elements, data is added later on. -->
+        <div class="pswp__container">
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+
+        <!-- Default (PhotoSwipeUI_Default) interface on top of sliding area. Can be changed. -->
+        <div class="pswp__ui pswp__ui--hidden">
+
+            <div class="pswp__top-bar">
+
+                <!--  Controls are self-explanatory. Order can be changed. -->
+
+                <div class="pswp__counter"></div>
+
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+
+                <!-- Preloader demo https://codepen.io/dimsemenov/pen/yyBWoR -->
+                <!-- element will get class pswp__preloader--active when preloader is running -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                      <div class="pswp__preloader__cut">
+                        <div class="pswp__preloader__donut"></div>
+                      </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap">
+                <div class="pswp__share-tooltip"></div> 
+            </div>
+
+            <button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </button>
+
+            <button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </button>
+
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+<script>
+    var photos = [
+        {{ range $image := .Images }}
+            {
+                "pid": {{$image.ID}},
+                "src": "/images/{{$image.ID}}.{{$image.FileType}}",
+                "msrc": "/images/{{$image.ID}}.thumb.jpg",
+                "title": {{$image.Title}},
+                "description": {{$image.Description}},
+                "h": {{$image.Height}},
+                "w": {{$image.Width}}
+            },
+        {{ end }}
+    ];
+
+    $('.image-container').empty().justifiedImages({
+        images : photos,
+        rowHeight: 250,
+        maxRowHeight: 500,
+        thumbnailPath: function(photo, width, height) {
+            return photo.msrc;
+        },
+        getSize: function(photo) {
+            var aspect = photo.w / photo.h;
+
+            var height = 0;
+            var width = 0;
+
+            if (photo.w > photo.h) {
+                width = Math.min(photo.w, 650);
+                height = width / aspect;
+            } else if (photo.h > photo.w) {
+                height = Math.min(photo.h, 650);
+                width = height * aspect;
+            } else {
+                height = Math.min(photo.h, 650);
+                width = Math.min(photo.w, 650);
+            }
+
+            return {width: width, height: height};
+        },
+        margin: 2
+    });
+
+    const regex = /.*\/(.*).thumb.jpg$/;
+
+    $('.image-thumb').on("click", function(event) {
+        var url = event.target.src;
+        var imageId = url.match(regex)[1]
+        
+        var pidx = findPhotoById(imageId);
+
+        openPhotoSwipe(pidx, event.target, event.target.parentNode)
+
+    });
+
+    var findPhotoById = function(imageId) {
+        return photos.findIndex(function(p) {
+            return p.pid === imageId;
+        });
+    }
+
+    var openPhotoSwipe = function(index, thumbnailElement, galleryElement) {
+        var pswpElement = document.querySelectorAll('.pswp')[0];
+
+        options = {
+            index: index,
+            galleryPIDs: true,
+
+            getThumbBoundsFn: function(index) {
+                    pageYScroll = window.pageYOffset || document.documentElement.scrollTop,
+                    rect = thumbnailElement.getBoundingClientRect(); 
+
+                return {x:rect.left, y:rect.top + pageYScroll, w:rect.width};
+            }
+
+        };
+
+        var gallery = new PhotoSwipe( pswpElement, PhotoSwipeUI_Default, photos, options);
+        gallery.init();
+    };
+</script>
+{{ end }}

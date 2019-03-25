@@ -1,0 +1,93 @@
+.album-wrapper {
+    padding: 10px;
+}
+
+.image-wrapper {
+    padding: 2px;
+}
+
+.album {  
+    position: relative;
+    z-index: 10;
+    display: block;
+    padding: 4px;
+    text-decoration: none !important;
+    color: rgba(0,0,0,.9) !important;
+    line-height: 2;
+}
+
+image {
+    position: relative;
+    z-index: 10;
+    display: block;
+    text-decoration: none !important;
+    color: rgba(0,0,0,.9) !important;
+    line-height: 2;
+}
+ 
+.album:before, .album:after {
+    content: "";
+    border-radius: 3px;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    border: 10px solid #fff;
+    left: 0;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    -moz-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    -webkit-transition: 0.3s all ease-out;
+    -moz-transition: 0.3s all ease-out;
+    transition: 0.3s all ease-out;
+}
+.album:before { top: 4px; z-index: -10; }
+.album:after { top: 8px; z-index: -20; }
+ 
+.album .thumbnail,
+.image .thumbnail {
+    position: relative;
+    max-width: 100%;
+    height: auto;
+    vertical-align: bottom;
+    border-radius: 3px;
+    padding-bottom: 100%;
+    overflow: hidden;
+}
+
+.album .thumbnail {
+    background-color: #e9ebee;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    -moz-box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.album .thumbnail .thumb,
+.image .thumbnail .thumb {
+    position: absolute;
+    background-repeat: no-repeat;
+    height: 100%;
+    width: 100%;
+}
+
+.album .thumbnail .thumb {
+    background-position: 50% 25%;
+    background-size: cover;
+}
+
+.image .thumbnail .thumb {
+    background-position: center;
+    background-size: contain;
+}
+
+.grid-item img {
+    max-width: 220px;
+    max-height: 220px;
+    float: left;
+    margin-bottom: 2px;
+  }
