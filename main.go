@@ -6,9 +6,10 @@ func main() {
 	repository := InitRepository()
 
 	adminServer := newAdminServer(repository)
+	publicServer := newPublicServer(repository)
 
 	adminServer.startListeningAdmin(exitCallback)
-	startListeningPublic(exitCallback)
+	publicServer.startListeningPublic(exitCallback)
 
 	<-exitCallback
 }

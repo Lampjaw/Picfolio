@@ -1,26 +1,10 @@
 {{define "content"}}
 <div class="album-header">
     <h2 class="album-title">{{$.Album.Title}}</h2>
-    <div class="album-description">{{if .Album.Description }}{{.Album.Description}}{{end}}</div>
-</div>
-<div class="album-edit-controls">
-    <div class="album-edit-buttons float-right">
-        <a href="/album/{{$.Album.ID}}/edit" class="btn btn-light">Edit</a>
-    </div>
+    <div class="album-description">{{if $.Album.Description}}{{$.Album.Description}}{{end}}</div>
 </div>
 <div class="photo-grid">
-    {{ if .Images }}
     <div class="image-container"></div>
-    {{else}}
-    <div class="photo-container menu-item" style="height:200px;" data-toggle="modal" data-target="#uploadModal">
-        <div class="image-thumb" style="width:200px;height:200px;" >
-            <div class="menu-item-content">
-                <div class="menu-icon">+</div>
-                <div class="menu-text">Add Photos</div>
-            </div>
-        </div>
-    </div>
-    {{ end }}
 </div>
 <div class="modal fade" id="uploadModal" tabindex="-1" role="dialog" aria-labelledby="uploadModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
@@ -46,23 +30,14 @@
 </div>
 {{template "photoswipe" .}}
 <script>
-    var gridMenu = [
-        {
-            "uploadButton": true,
-            "menuTarget": "#uploadModal",
-            "menuText": "Add Photos",
-            "h": 200,
-            "w": 150
-        }
-    ];
-    
+    var gridMenu = [];
     var photos = [
         {{ range $image := .Images }}
         {
             "pid": {{$image.ID}},
             "src": "/images/{{$image.ID}}.{{$image.FileType}}",
             "msrc": "/images/{{$image.ID}}.thumb.jpg",
-            "title": {{$image.Description}},
+            "title": "{{if $image.Description}}{{$image.Description}}{{end}}",
             "h": {{$image.Height}},
             "w": {{$image.Width}}
         },

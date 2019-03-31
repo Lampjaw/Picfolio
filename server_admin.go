@@ -79,8 +79,14 @@ func (s *AdminServer) startListeningAdmin(exitCallback chan bool) {
 	s.Router.HandleFunc("/logout", s.handleLogout)
 	s.Router.HandleFunc("/admin", s.handleAdminPage)
 	s.Router.HandleFunc("/upload/{albumID}", s.handleUpload).Methods("POST")
+	s.Router.HandleFunc("/image/{imageID}", s.handleImageUpdate).Methods("POST")
+	s.Router.HandleFunc("/image/{imageID}", s.handleImageDelete).Methods("DELETE")
+	s.Router.HandleFunc("/image/{imageID}/rotate", s.handleImageRotate).Methods("POST")
 	s.Router.HandleFunc("/album", s.handleAlbumCreate).Methods("POST")
+	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumUpdate).Methods("POST")
+	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumDelete).Methods("DELETE")
 	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumPage)
+	s.Router.HandleFunc("/album/{albumID}/edit", s.handleAlbumEditPage)
 
 	fs := http.FileServer(http.Dir("./www/assets/"))
 	s.Router.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
@@ -133,7 +139,7 @@ func (s *AdminServer) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		data.ErrorMessage = "Incorrect username or password"
 	}
 
-	tmpl := template.Must(template.ParseFiles("www/admin/login.html", "www/common_head.html"))
+	tmpl := template.Must(template.ParseFiles("www/admin/login.html", "www/common_head.html", "www/common_foot.html"))
 
 	tmpl.Execute(w, data)
 }
@@ -165,7 +171,7 @@ func (s *AdminServer) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		Albums: albumRecords,
 	}
 
-	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/admin/admin.html"))
+	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/admin/admin.html"))
 
 	tmpl.Execute(w, data)
 }
@@ -229,7 +235,189 @@ func (s *AdminServer) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 		Images: imageRecords,
 	}
 
-	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/admin/album.html"))
+	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/admin/album.html", "www/photoswipe.html"))
+
+	tmpl.Execute(w, data)
+}
+
+func (s *AdminServer) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	albumID := vars["albumID"]
+
+	currentAlbum, err := s.Repository.getAlbumRecord(albumID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if currentAlbum == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	title := r.FormValue("title")
+	description := nilString(r.FormValue("description"))
+	coverPhotoID := nilString(r.FormValue("coverPhotoId"))
+
+	if title == "" {
+		title = currentAlbum.Title
+	}
+
+	err = s.Repository.updateAlbum(albumID, title, description, coverPhotoID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *AdminServer) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	albumID := vars["albumID"]
+
+	currentAlbum, err := s.Repository.getAlbumRecord(albumID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if currentAlbum == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	err = deleteAlbum(s.Repository, albumID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *AdminServer) handleImageUpdate(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	imageID := vars["imageID"]
+
+	currentImage, err := s.Repository.getImageRecord(imageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if currentImage == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	currentImage.Description = nilString(r.FormValue("description"))
+
+	err = s.Repository.updateImage(imageID, currentImage)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *AdminServer) handleImageDelete(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	imageID := vars["imageID"]
+
+	currentImage, err := s.Repository.getImageRecord(imageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if currentImage == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	err = deleteImage(s.Repository, imageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *AdminServer) handleImageRotate(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	imageID := vars["imageID"]
+
+	err := rotateImage(s.Repository, imageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func nilString(str string) *string {
+	if str == "" {
+		return nil
+	}
+	return &str
+}
+
+func (s *AdminServer) handleAlbumEditPage(w http.ResponseWriter, r *http.Request) {
+	isAuthorized, _ := checkIsAuthorized(s, r)
+	if !isAuthorized {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	vars := mux.Vars(r)
+	albumID := vars["albumID"]
+
+	albumRecord, err := s.Repository.getAlbumRecord(albumID)
+	if err != nil {
+		log.Println(err)
+	}
+
+	imageRecords, err := s.Repository.getAllImageRecordsByAlbumID(albumID)
+	if err != nil {
+		log.Println(err)
+	}
+
+	data := &AlbumPageData{
+		Album:  albumRecord,
+		Images: imageRecords,
+	}
+
+	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/admin/album_edit.html"))
 
 	tmpl.Execute(w, data)
 }

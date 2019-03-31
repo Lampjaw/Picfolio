@@ -41,17 +41,20 @@ func InitRepository() *Repository {
 		log.Fatal(err)
 	}
 
-	sqlStmt := `
-		create table images (id text not null primary key, fileType text, title text, path text, description text, size int64, mimeType text, albumId text, height int, width int, created timestamp);
-		delete from images;
-		create table albums (id text not null primary key, title text, description text, coverPhotoId text, created timestamp);
-		delete from albums;
-		`
+	/*
 
-	_, err = db.Exec(sqlStmt)
-	if err != nil {
-		log.Fatal("%q: %s\n", err, sqlStmt)
-	}
+		sqlStmt := `
+			create table images (id text not null primary key, fileType text, title text, path text, description text, size int64, mimeType text, albumId text, height int, width int, created timestamp);
+			delete from images;
+			create table albums (id text not null primary key, title text, description text, coverPhotoId text, created timestamp);
+			delete from albums;
+			`
+
+		_, err = db.Exec(sqlStmt)
+		if err != nil {
+			log.Fatal("%q: %s\n", err, sqlStmt)
+		}
+	*/
 
 	return &Repository{
 		Database: db,
@@ -197,7 +200,7 @@ func (r *Repository) getAllImageRecords() ([]*ImageRecord, error) {
 }
 
 func (r *Repository) getImageRecord(id string) (*ImageRecord, error) {
-	stmt, err := r.Database.Prepare("select id, path, title, description, size, fileType, mimeType, albumID, height, width, created from images where id = ?")
+	stmt, err := r.Database.Prepare("select id, path, title, description, size, fileType, mimeType, albumId, height, width, created from images where id = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +223,81 @@ func (r *Repository) setCoverPhotoID(albumID string, coverPhotoID string) error 
 	defer stmt.Close()
 
 	_, err = stmt.Exec(coverPhotoID, albumID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) updateAlbum(albumID string, title string, description *string, coverPhotoID *string) error {
+	stmt, err := r.Database.Prepare("update albums set title = ?, description = ?, coverPhotoId = ? where id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(title, description, coverPhotoID, albumID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) deleteAlbum(albumID string) error {
+	stmt, err := r.Database.Prepare("delete from albums where id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(albumID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) deleteImagesByAlbumID(albumID string) error {
+	stmt, err := r.Database.Prepare("delete from images where albumId = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(albumID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) deleteImage(imageID string) error {
+	stmt, err := r.Database.Prepare("delete from images where id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(imageID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Repository) updateImage(imageID string, record *ImageRecord) error {
+	stmt, err := r.Database.Prepare("update images set description = ?, height = ?, width = ?, albumId = ? where id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(record.Description, record.Height, record.Width, record.AlbumID, imageID)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,27 @@
+<html>
+    {{template "common_head" .}}
+    <body>
+        <div id="main">
+            <nav class="navbar navbar-expand-sm navbar-light border-bottom border-dark">
+                <div class="container">
+                    <a class="navbar-brand" href="/">Picfolio</a>
+                    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse justify-content-between" id="navbarSupportedContent">
+                        <ul class="navbar-nav mr-auto">
+                            <li class="nav-item active">
+                                <!--<button type="submit" class="btn btn-primary" data-toggle="modal" data-target="#createAlbumModal">New Album</button>-->
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            <br>
+            <div class="container">
+                {{template "content" .}}
+            </div>
+        </div>
+        {{template "common_foot" .}}
+    </body>
+</html>

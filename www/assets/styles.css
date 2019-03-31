@@ -1,9 +1,58 @@
+body {
+    position: relative;
+    padding-bottom: 6rem;
+    min-height: 100%;
+}
+
+footer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 1rem;
+    text-align: center;
+    
+}
+
+footer .brand-link {
+    color: rgba(0,0,0,.4);
+    text-decoration: none !important;
+}
+
+footer .brand-link:hover {
+    color: rgba(0,0,0,.8);
+}
+
+.album-edit-buttons {
+    margin-bottom: 20px;
+}
+
 .album-wrapper {
     padding: 10px;
 }
 
-.image-wrapper {
-    padding: 2px;
+.album-edit-controls {
+    overflow: hidden;
+}
+
+.image-editor {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+}
+
+.image-editor-description.form-control {
+    border-radius: 0;
+}
+
+.image-editor-thumbnail {
+    max-width: 100%;
+    max-height: 300px;
+}
+
+.album-editor-description,
+.image-editor-description {
+    resize: none;
 }
 
 .album {  
@@ -11,15 +60,6 @@
     z-index: 10;
     display: block;
     padding: 4px;
-    text-decoration: none !important;
-    color: rgba(0,0,0,.9) !important;
-    line-height: 2;
-}
-
-image {
-    position: relative;
-    z-index: 10;
-    display: block;
     text-decoration: none !important;
     color: rgba(0,0,0,.9) !important;
     line-height: 2;
@@ -46,8 +86,7 @@ image {
 .album:before { top: 4px; z-index: -10; }
 .album:after { top: 8px; z-index: -20; }
  
-.album .thumbnail,
-.image .thumbnail {
+.album .thumbnail {
     position: relative;
     max-width: 100%;
     height: auto;
@@ -67,8 +106,7 @@ image {
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-.album .thumbnail .thumb,
-.image .thumbnail .thumb {
+.album .thumbnail .thumb {
     position: absolute;
     background-repeat: no-repeat;
     height: 100%;
@@ -80,14 +118,42 @@ image {
     background-size: cover;
 }
 
-.image .thumbnail .thumb {
-    background-position: center;
-    background-size: contain;
+.photo-grid .photo-container {
+    cursor: pointer;
 }
 
-.grid-item img {
-    max-width: 220px;
-    max-height: 220px;
-    float: left;
-    margin-bottom: 2px;
-  }
+.photo-grid .menu-item .image-thumb {
+    border: 2px dashed rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    background-color: #eee;
+}
+
+.album-header {
+    margin-bottom: 15px;
+}
+
+.menu-item-content {
+    position: absolute;
+    top: 25%;
+    width: 100%;
+    text-align: center;
+    color:  rgba(0, 0, 0, 0.4);
+}
+
+.menu-icon {
+    margin-top: -72px;
+    margin-bottom: -46px;
+    font-size: 7em;
+}
+
+.menu-text {
+    font-size: 1.5em;
+}
+
+.image-edit-controls .btn-group {
+    width: 100%;
+}
+
+.image-edit-controls .btn-group .btn {
+    border-radius: 0 !important;
+}
