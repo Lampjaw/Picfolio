@@ -132,6 +132,15 @@ footer .brand-link:hover {
     margin-bottom: 15px;
 }
 
+.album-list .album-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.album-page .album-title {
+    word-wrap: break-word;
+}
+
 .menu-item-content {
     position: absolute;
     top: 25%;

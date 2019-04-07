@@ -21,7 +21,7 @@
     <div class="image-edit-list row align-items-end">
         {{ range $image := .Images }}
         <div class="image-editor col-4" data-id="{{$image.ID}}">
-            <img class="image-editor-thumbnail" src="/images/{{$image.ID}}.thumb.jpg">
+            <img class="image-editor-thumbnail" src="/images/{{$.Album.ID}}/{{$image.ID}}.thumb.jpg">
             <div class="image-edit-controls">
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-light image-editor-cover-photo-button" title="Set as cover photo">

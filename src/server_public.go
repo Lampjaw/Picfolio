@@ -10,9 +10,11 @@ import (
 )
 
 type PublicServer struct {
-	Port       string
-	Router     *mux.Router
-	Repository *Repository
+	Port         string
+	Router       *mux.Router
+	AppState     *AppState
+	ImageManager *ImageManager
+	AlbumManager *AlbumManager
 }
 
 type PublicMainPageData struct {
@@ -24,45 +26,44 @@ type PublicAlbumPageData struct {
 	Images []*ImageRecord
 }
 
-func newPublicServer(r *Repository) *PublicServer {
+func newPublicServer(a *AppState) *PublicServer {
 	return &PublicServer{
-		Port:       "80",
-		Router:     mux.NewRouter(),
-		Repository: r,
+		Port:         "80",
+		Router:       mux.NewRouter(),
+		AppState:     a,
+		ImageManager: a.ImageManager,
+		AlbumManager: a.AlbumManager,
 	}
 }
 
-func (s *PublicServer) startListeningPublic(exitCallback chan bool) {
+func (s *PublicServer) startListeningPublic() {
 	s.Router.HandleFunc("/", s.handleMainPage)
 	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumPage)
 
-	fs := http.FileServer(http.Dir("./www/assets/"))
-	s.Router.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
-
-	ifs := http.FileServer(http.Dir("./images/"))
-	s.Router.PathPrefix("/images/").Handler(http.StripPrefix("/images/", ifs))
+	s.addCommonRoutes()
 
 	go func() {
 		if err := http.ListenAndServe(fmt.Sprintf(":%s", s.Port), s.Router); err != nil {
 			panic(err)
 		}
-		exitCallback <- true
+		s.AppState.exitCallback <- true
 	}()
 
 	log.Printf("Public server started on port %s", s.Port)
 }
 
 func (s *PublicServer) handleMainPage(w http.ResponseWriter, r *http.Request) {
-	albumRecords, err := s.Repository.getAllAlbumRecords()
+	albumRecords, err := s.AlbumManager.getAllAlbums()
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data := &PublicMainPageData{
 		Albums: albumRecords,
 	}
 
-	tmpl := template.Must(template.ParseFiles("www/public/public_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/public/public.html"))
+	tmpl := template.Must(template.ParseFiles("www/public/public_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/album_list.html"))
 
 	tmpl.Execute(w, data)
 }
@@ -71,14 +72,21 @@ func (s *PublicServer) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	albumRecord, err := s.Repository.getAlbumRecord(albumID)
+	albumRecord, err := s.AlbumManager.getAlbum(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	imageRecords, err := s.Repository.getAllImageRecordsByAlbumID(albumID)
+	if albumRecord == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	imageRecords, err := s.ImageManager.getAllImagesByAlbumID(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data := &PublicAlbumPageData{

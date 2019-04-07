@@ -23,7 +23,9 @@ type AdminServer struct {
 	AdminCredentials *Credentials
 	Router           *mux.Router
 	CookieStore      *sessions.CookieStore
-	Repository       *Repository
+	AppState         *AppState
+	ImageManager     *ImageManager
+	AlbumManager     *AlbumManager
 }
 
 type Credentials struct {
@@ -45,18 +47,14 @@ type AlbumPageData struct {
 	Images []*ImageRecord
 }
 
-func newAdminServer(r *Repository) *AdminServer {
+func newAdminServer(a *AppState) *AdminServer {
 	adminKey := os.Getenv("ADMIN_KEY")
 
+	var adminCredentials *Credentials
 	if adminKey == "" {
 		log.Println("Missing ADMIN_KEY.")
 	} else {
-		//adminCredentials := getBase64Credentials(adminKey)
-	}
-
-	adminCredentials := &Credentials{
-		Username: "root",
-		Password: "root",
+		adminCredentials = getBase64Credentials(adminKey)
 	}
 
 	return &AdminServer{
@@ -64,11 +62,13 @@ func newAdminServer(r *Repository) *AdminServer {
 		AdminCredentials: adminCredentials,
 		Router:           mux.NewRouter(),
 		CookieStore:      sessions.NewCookieStore(securecookie.GenerateRandomKey(32)),
-		Repository:       r,
+		AppState:         a,
+		ImageManager:     a.ImageManager,
+		AlbumManager:     a.AlbumManager,
 	}
 }
 
-func (s *AdminServer) startListeningAdmin(exitCallback chan bool) {
+func (s *AdminServer) startListeningAdmin() {
 	if s.AdminCredentials == nil {
 		return
 	}
@@ -76,32 +76,39 @@ func (s *AdminServer) startListeningAdmin(exitCallback chan bool) {
 	s.Router.Handle("/", http.RedirectHandler("login", http.StatusFound))
 
 	s.Router.HandleFunc("/login", s.handleLoginPage)
-	s.Router.HandleFunc("/logout", s.handleLogout)
-	s.Router.HandleFunc("/admin", s.handleAdminPage)
-	s.Router.HandleFunc("/upload/{albumID}", s.handleUpload).Methods("POST")
-	s.Router.HandleFunc("/image/{imageID}", s.handleImageUpdate).Methods("POST")
-	s.Router.HandleFunc("/image/{imageID}", s.handleImageDelete).Methods("DELETE")
-	s.Router.HandleFunc("/image/{imageID}/rotate", s.handleImageRotate).Methods("POST")
-	s.Router.HandleFunc("/album", s.handleAlbumCreate).Methods("POST")
-	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumUpdate).Methods("POST")
-	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumDelete).Methods("DELETE")
-	s.Router.HandleFunc("/album/{albumID}", s.handleAlbumPage)
-	s.Router.HandleFunc("/album/{albumID}/edit", s.handleAlbumEditPage)
+	s.Router.Handle("/logout", s.authHandler(s.handleLogout))
+	s.Router.Handle("/admin", s.authHandler(s.handleAdminPage))
+	s.Router.Handle("/upload/{albumID}", s.authHandler(s.handleUpload)).Methods("POST")
+	s.Router.Handle("/image/{imageID}", s.authHandler(s.handleImageUpdate)).Methods("POST")
+	s.Router.Handle("/image/{imageID}", s.authHandler(s.handleImageDelete)).Methods("DELETE")
+	s.Router.Handle("/image/{imageID}/rotate", s.authHandler(s.handleImageRotate)).Methods("POST")
+	s.Router.Handle("/album", s.authHandler(s.handleAlbumCreate)).Methods("POST")
+	s.Router.Handle("/album/{albumID}", s.authHandler(s.handleAlbumUpdate)).Methods("POST")
+	s.Router.Handle("/album/{albumID}", s.authHandler(s.handleAlbumDelete)).Methods("DELETE")
+	s.Router.Handle("/album/{albumID}", s.authHandler(s.handleAlbumPage))
+	s.Router.Handle("/album/{albumID}/edit", s.authHandler(s.handleAlbumEditPage))
 
-	fs := http.FileServer(http.Dir("./www/assets/"))
-	s.Router.PathPrefix("/assets/").Handler(http.StripPrefix("/assets/", fs))
-
-	ifs := http.FileServer(http.Dir("./images/"))
-	s.Router.PathPrefix("/images/").Handler(http.StripPrefix("/images/", ifs))
+	s.addCommonRoutes()
 
 	go func() {
 		if err := http.ListenAndServe(fmt.Sprintf(":%s", s.Port), s.Router); err != nil {
 			panic(err)
 		}
-		exitCallback <- true
+		s.AppState.exitCallback <- true
 	}()
 
 	log.Printf("Admin server started on port %s", s.Port)
+}
+
+func (s *AdminServer) authHandler(f func(w http.ResponseWriter, r *http.Request)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isAuthorized, _ := checkIsAuthorized(s, r)
+		if !isAuthorized {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		f(w, r)
+	})
 }
 
 func (s *AdminServer) handleLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -156,37 +163,31 @@ func (s *AdminServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *AdminServer) handleAdminPage(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
-	albumRecords, err := s.Repository.getAllAlbumRecords()
+	albumRecords, err := s.AlbumManager.getAllAlbums()
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data := &AdminPageData{
 		Albums: albumRecords,
 	}
 
-	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/admin/admin.html"))
+	tmpl := template.Must(template.ParseFiles("www/admin/admin_wrapper.html", "www/common_head.html", "www/common_foot.html", "www/album_list.html"))
 
 	tmpl.Execute(w, data)
 }
 
 func (s *AdminServer) handleUpload(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	_, err := uploadFiles(s.Repository, albumID, r)
+	uploadProfiles, err := uploadFiles(s.AppState, r)
+	if uploadProfiles != nil && len(uploadProfiles) > 0 {
+		for _, uploadProfile := range uploadProfiles {
+			s.ImageManager.createImage(albumID, uploadProfile)
+		}
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -196,38 +197,37 @@ func (s *AdminServer) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *AdminServer) handleAlbumCreate(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	title := r.FormValue("title")
 	description := r.FormValue("description")
 
-	albumID, _ := s.Repository.createAlbumRecord(title, description)
+	albumID, err := s.AlbumManager.createAlbum(title, description)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	http.Redirect(w, r, fmt.Sprintf("/album/%s", albumID), http.StatusFound)
 }
 
 func (s *AdminServer) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	albumRecord, err := s.Repository.getAlbumRecord(albumID)
+	albumRecord, err := s.AlbumManager.getAlbum(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	imageRecords, err := s.Repository.getAllImageRecordsByAlbumID(albumID)
+	if albumRecord == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	imageRecords, err := s.ImageManager.getAllImagesByAlbumID(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data := &AlbumPageData{
@@ -241,16 +241,10 @@ func (s *AdminServer) handleAlbumPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *AdminServer) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	currentAlbum, err := s.Repository.getAlbumRecord(albumID)
+	currentAlbum, err := s.AlbumManager.getAlbum(albumID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,7 +262,7 @@ func (s *AdminServer) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) 
 		title = currentAlbum.Title
 	}
 
-	err = s.Repository.updateAlbum(albumID, title, description, coverPhotoID)
+	err = s.AlbumManager.updateAlbum(albumID, title, description, coverPhotoID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -278,16 +272,10 @@ func (s *AdminServer) handleAlbumUpdate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *AdminServer) handleAlbumDelete(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	currentAlbum, err := s.Repository.getAlbumRecord(albumID)
+	currentAlbum, err := s.AlbumManager.getAlbum(albumID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -297,7 +285,7 @@ func (s *AdminServer) handleAlbumDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err = deleteAlbum(s.Repository, albumID)
+	err = s.AlbumManager.deleteAlbum(albumID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -307,16 +295,10 @@ func (s *AdminServer) handleAlbumDelete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *AdminServer) handleImageUpdate(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	imageID := vars["imageID"]
 
-	currentImage, err := s.Repository.getImageRecord(imageID)
+	currentImage, err := s.ImageManager.getImage(imageID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -328,7 +310,7 @@ func (s *AdminServer) handleImageUpdate(w http.ResponseWriter, r *http.Request) 
 
 	currentImage.Description = nilString(r.FormValue("description"))
 
-	err = s.Repository.updateImage(imageID, currentImage)
+	err = s.ImageManager.updateImage(imageID, currentImage)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -338,16 +320,10 @@ func (s *AdminServer) handleImageUpdate(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *AdminServer) handleImageDelete(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	imageID := vars["imageID"]
 
-	currentImage, err := s.Repository.getImageRecord(imageID)
+	currentImage, err := s.ImageManager.getImage(imageID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -357,7 +333,7 @@ func (s *AdminServer) handleImageDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err = deleteImage(s.Repository, imageID)
+	err = s.ImageManager.deleteImage(imageID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -367,16 +343,10 @@ func (s *AdminServer) handleImageDelete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *AdminServer) handleImageRotate(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	imageID := vars["imageID"]
 
-	err := rotateImage(s.Repository, imageID)
+	err := s.ImageManager.rotateImage(imageID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -393,23 +363,24 @@ func nilString(str string) *string {
 }
 
 func (s *AdminServer) handleAlbumEditPage(w http.ResponseWriter, r *http.Request) {
-	isAuthorized, _ := checkIsAuthorized(s, r)
-	if !isAuthorized {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
-
 	vars := mux.Vars(r)
 	albumID := vars["albumID"]
 
-	albumRecord, err := s.Repository.getAlbumRecord(albumID)
+	albumRecord, err := s.AlbumManager.getAlbum(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	imageRecords, err := s.Repository.getAllImageRecordsByAlbumID(albumID)
+	if albumRecord == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	imageRecords, err := s.ImageManager.getAllImagesByAlbumID(albumID)
 	if err != nil {
-		log.Println(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	data := &AlbumPageData{
